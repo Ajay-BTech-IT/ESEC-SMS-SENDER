@@ -21,6 +21,9 @@ const AdvisorPage = () => {
   });
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedMarkType, setSelectedMarkType] = useState('cat1');
+
+  // Bulk Send Marks States
   const [selectedStudentsForMarks, setSelectedStudentsForMarks] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
@@ -34,7 +37,7 @@ const AdvisorPage = () => {
   const [uploadExamType, setUploadExamType] = useState('');
   const [file, setFile] = useState(null);
 
-  // Exam Selection Modal
+  // Exam Type Modal
   const [showExamModal, setShowExamModal] = useState(false);
   const [selectedExamType, setSelectedExamType] = useState('');
 
@@ -103,7 +106,6 @@ const AdvisorPage = () => {
         data.subjects.forEach(subj => {
           subjectMap[subj.subject_code] = subj.subject_name;
         });
-
         const marksTable = Object.keys(subjectMap).map(code => ({
           subjectCode: code,
           subjectName: subjectMap[code],
@@ -112,7 +114,6 @@ const AdvisorPage = () => {
           cat3: data.CAT3[code] || '-',
           model: data.MODEL[code] || '-'
         }));
-
         setSelectedStudent(prev => ({
           ...prev,
           marksTable
@@ -127,11 +128,66 @@ const AdvisorPage = () => {
     }
   };
 
+  const handleBulkSendMarksWithType = async (examType) => {
+    if (!selectedStudentsForMarks.length) {
+      alert('Please select at least one student.');
+      return;
+    }
+
+    const payload = {
+      marksData: selectedStudentsForMarks.map((s) => ({
+        rollno: s.rollno,
+        examType: examType,
+      })),
+    };
+
+    try {
+      const res = await axios.post(`${API_URL}/send-marks`, payload, {
+        withCredentials: true,
+      });
+      if (res.data.success) {
+        alert('✅ Marks sent successfully!');
+      } else {
+        alert('❌ Some marks failed to send.');
+      }
+    } catch (err) {
+      console.error('🚨 Error sending marks:', err.message);
+      alert('❌ Currently not able to send message.');
+    }
+  };
+
+  const handleSendButtonClick = () => {
+    if (!selectedStudentsForMarks.length) {
+      alert('Please select at least one student.');
+      return;
+    }
+    setShowExamModal(true);
+  };
+
+  const handleConfirmSend = () => {
+    if (!selectedExamType) {
+      alert('Please select an exam type.');
+      return;
+    }
+    handleBulkSendMarksWithType(selectedExamType);
+    setShowExamModal(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await axios.get('http://localhost:5000/api/auth/logout', {
+        withCredentials: true,
+      });
+    } finally {
+      navigate('/login');
+    }
+  };
+
+  // Render marks table if available
   const renderMarksTable = () => {
     if (!selectedStudent?.marksTable?.length) {
       return <p className="text-gray-500 italic">No subjects or marks found.</p>;
     }
-
     return (
       <div className="mt-4 overflow-x-auto">
         <h3 className="text-lg font-bold mb-2">Marks</h3>
@@ -163,7 +219,6 @@ const AdvisorPage = () => {
     );
   };
 
-  // Handle checkbox change
   const handleCheckboxChange = (student) => {
     const isSelected = selectedStudentsForMarks.some((s) => s.rollno === student.rollno);
     if (isSelected) {
@@ -175,50 +230,12 @@ const AdvisorPage = () => {
     }
   };
 
-  // Handle select all toggle
   const handleSelectAll = () => {
-    const newSelectAll = !selectAll;
-    setSelectAll(newSelectAll);
-    setSelectedStudentsForMarks(newSelectAll ? [...students] : []);
-  };
-
-  // Send selected marks with exam type
-  const handleBulkSendMarksWithType = async (examType) => {
-    if (!selectedStudentsForMarks.length) {
-      alert('Please select at least one student.');
-      return;
-    }
-
-    const payload = {
-      marksData: selectedStudentsForMarks.map((s) => ({
-        rollno: s.rollno,
-        examType: examType.toUpperCase(),
-      })),
-    };
-
-    try {
-      const res = await axios.post(`${API_URL}/send-marks`, payload, {
-        withCredentials: true,
-      });
-      if (res.data.success) {
-        alert('✅ Marks sent successfully!');
-      } else {
-        alert('❌ Some marks failed to send.');
-      }
-    } catch (err) {
-      console.error('🚨 Error sending marks:', err.message);
-      alert('❌ Currently not able to send message.');
-    }
-  };
-
-  // Handle Logout
-  const handleLogout = async () => {
-    try {
-      await axios.get('http://localhost:5000/api/auth/logout', {
-        withCredentials: true,
-      });
-    } finally {
-      navigate('/login');
+    setSelectAll(!selectAll);
+    if (!selectAll) {
+      setSelectedStudentsForMarks(students); // Select all students
+    } else {
+      setSelectedStudentsForMarks([]); // Deselect all
     }
   };
 
@@ -316,7 +333,6 @@ const AdvisorPage = () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('examType', uploadExamType); // e.g., 'CAT1'
-
     try {
       const res = await axios.post(`${API_URL}/upload-marks`, formData, {
         withCredentials: true,
@@ -342,6 +358,12 @@ const AdvisorPage = () => {
         `}
       </style>
 
+      {/* Rest of JSX (unchanged except for student box color fix) */}
+      {/* Paste full JSX here from your original file up until the main content */}
+      {/* Ensure you replace only the relevant sections like Send Section and Students Section */}
+
+      {/* Then paste the rest of the components including modals */}
+
       <div className="flex flex-col min-h-screen bg-gray-100 font-roboto">
         {/* Header */}
         <header className="bg-[#292969] text-white p-4 shadow-md sticky top-0 z-50">
@@ -354,6 +376,7 @@ const AdvisorPage = () => {
                 <p className="text-sm font-bold">SENGUNTHAR ENGINEERING COLLEGE</p>
               </div>
             </div>
+
             {/* Navigation Menu */}
             <ul className="flex flex-wrap gap-4 text-white font-medium">
               <li>
@@ -416,94 +439,95 @@ const AdvisorPage = () => {
             </div>
           )}
 
-          {/* Students Section */}
           {activeMenu === 'students' && (
-            <div className="bg-blue-100 rounded-lg shadow-lg p-4 md:p-6">
-              <h2 className="text-xl md:text-2xl font-bold mb-4">Students</h2>
-              {selectedStudent ? (
-                <div className="flex flex-col md:flex-row gap-6">
-                  {/* Left Panel */}
-                  <div className="w-full md:w-1/4 md:h-[80vh] md:overflow-y-auto bg-white rounded-lg shadow-lg p-4 md:p-6">
-                    <h2 className="text-xl font-bold mb-4">Students</h2>
-                    <div className="grid grid-cols-1 gap-4">
-                      {students.length > 0 ? (
-                        students.map((student) => (
-                          <div
-                            key={student.rollno}
-                            className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
-                            onClick={() => handleStudentClick(student)}
-                          >
-                            <h3 className="text-lg font-semibold">{student.name}</h3>
-                            <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p>No students found.</p>
-                      )}
+          <div className="bg-blue-100 rounded-lg shadow-lg p-4 md:p-6">
+            <h2 className="text-xl md:text-2xl font-bold mb-4">Students</h2>
+            {selectedStudent ? (
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Left Panel */}
+                <div className="w-full md:w-1/4 md:h-[80vh] md:overflow-y-auto bg-white rounded-lg shadow-lg p-4 md:p-6">
+                  <h2 className="text-xl font-bold mb-4">Students</h2>
+                  <div className="grid grid-cols-1 gap-4">
+                    {students.length > 0 ? (
+                      students.map((student) => (
+                        <div
+                          key={student.rollno}
+                          className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
+                          onClick={() => handleStudentClick(student)}
+                        >
+                          <h3 className="text-lg font-semibold">{student.name}</h3>
+                          <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p>No students found.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Panel */}
+                <div className="w-full md:w-3/4 bg-white rounded-lg shadow-lg p-4 md:p-6">
+                  <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
+                  <table className="min-w-full mt-2 border-collapse border border-gray-300">
+                    <tbody>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Roll No</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.rollno}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Department</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.department}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Year</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.year}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Class</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.class}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Email</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.email}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">WhatsApp</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.whatsapp}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Language</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.language}</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-300 px-3 py-2 font-semibold">Semester</td>
+                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.semester}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {renderMarksTable()}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {students.length > 0 ? (
+                  students.map((student) => (
+                    <div
+                      key={student.rollno}
+                      className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
+                      onClick={() => handleStudentClick(student)}
+                    >
+                      <h3 className="text-lg font-semibold">{student.name}</h3>
+                      <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
                     </div>
-                  </div>
-                  {/* Right Panel */}
-                  <div className="w-full md:w-3/4 bg-white rounded-lg shadow-lg p-4 md:p-6">
-                    <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
-                    <table className="min-w-full mt-2 border-collapse border border-gray-300">
-                      <tbody>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Roll No</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.rollno}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Department</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.department}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Year</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.year}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Class</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.class}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Email</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.email}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">WhatsApp</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.whatsapp}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Language</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.language}</td>
-                        </tr>
-                        <tr className="bg-gray-100">
-                          <td className="border border-gray-300 px-3 py-2 font-semibold">Semester</td>
-                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.semester}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    {renderMarksTable()}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {students.length > 0 ? (
-                    students.map((student) => (
-                      <div
-                        key={student.rollno}
-                        className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
-                        onClick={() => handleStudentClick(student)}
-                      >
-                        <h3 className="text-lg font-semibold">{student.name}</h3>
-                        <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p>No students found.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                  ))
+                ) : (
+                  <p>No students found.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
 
           {/* Send Section */}
           {activeMenu === 'send' && (
@@ -522,12 +546,14 @@ const AdvisorPage = () => {
                       alert('Please select at least one student.');
                       return;
                     }
-                    setShowExamModal(true);
+                    setShowExamModal(true); // 👈 Show modal instead of sending directly
+                    handleBulkSendMarksWithType(selectedExamType); 
                   }}
                   className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                 >
                   Send Selected Marks
                 </button>
+
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {students.map((student) => (
@@ -609,7 +635,12 @@ const AdvisorPage = () => {
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -659,49 +690,52 @@ const AdvisorPage = () => {
             </div>
           </div>
         )}
+       
 
         {/* Exam Type Selection Modal */}
-        {showExamModal && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-              <h3 className="text-lg font-bold mb-4">Select Exam Type</h3>
-              {['CAT1', 'CAT2', 'CAT3', 'MODEL'].map((type) => (
-                <label key={type} className="flex items-center mb-2">
-                  <input
-                    type="radio"
-                    name="examType"
-                    value={type}
-                    checked={selectedExamType === type}
-                    onChange={(e) => setSelectedExamType(e.target.value)}
-                    className="mr-2"
-                  />
-                  {type}
-                </label>
-              ))}
-              <div className="flex justify-end mt-4 gap-2">
-                <button
-                  onClick={() => setShowExamModal(false)}
-                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (!selectedExamType) {
-                      alert('Please select an exam type.');
-                      return;
-                    }
-                    setShowExamModal(false);
-                    handleBulkSendMarksWithType(selectedExamType);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Send
-                </button>
+          {showExamModal && (
+            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+                <h3 className="text-lg font-bold mb-4">Select Exam Type</h3>
+
+                {['CAT1', 'CAT2', 'CAT3', 'MODEL'].map((type) => (
+                  <label key={type} className="flex items-center mb-2">
+                    <input
+                      type="radio"
+                      name="examType"
+                      value={type}
+                      checked={selectedExamType === type}
+                      onChange={(e) => setSelectedExamType(e.target.value)}
+                      className="mr-2"
+                    />
+                    {type}
+                  </label>
+                ))}
+
+                <div className="flex justify-end mt-4 gap-2">
+                  <button
+                    onClick={() => setShowExamModal(false)}
+                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!selectedExamType) {
+                        alert('Please select an exam type.');
+                        return;
+                      }
+                      setShowExamModal(false);
+                      handleBulkSendMarksWithType(selectedExamType); // 👈 trigger send
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Send
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* File Upload Modal */}
         {showModal && (
@@ -720,7 +754,12 @@ const AdvisorPage = () => {
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>

@@ -1,8 +1,9 @@
 const twilio = require('twilio');
-require('dotenv').config();
-
-const accountSid = process.env.TWILIO_ACCOUNT_SID || 'ACac905553f4066a951addbcbf360b3ddb';
-const authToken = process.env.TWILIO_AUTH_TOKEN || '88e7598eebab2ee57665b45f9bd2af68';
+const dotenv = require('dotenv');
+const path = require('path');
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+const accountSid = process.env.TWILIO_ACCOUNT_SID ;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
 
 const client = twilio(accountSid, authToken);
 
@@ -37,32 +38,3 @@ exports.sendMarks = async (student, examType, marks, advisorName, language = 'ta
   }
 };
 
-
-// const twilio = require('twilio');
-// require('dotenv').config();
-
-// const accountSid = process.env.TWILIO_ACCOUNT_SID || 'ACac905553f4066a951addbcbf360b3ddb';
-// const authToken = process.env.TWILIO_AUTH_TOKEN || '88e7598eebab2ee57665b45f9bd2af68';
-
-// const client = twilio(accountSid, authToken);
-
-// exports.sendMarks = async (student, examType, marks, advisorName) => {
-//   let messageBody = `Hi ${student.name}, here are your ${examType.toUpperCase()} marks:\n\n`;
-//   marks.forEach(mark => {
-//    messageBody += `${mark.subject}: ${mark[examType.toUpperCase()] || '-'}\n`;
-//   });
-//   messageBody += `\nBest regards,\n${advisorName}`;
-
-//   try {
-//     const message = await client.messages.create({
-//       body: messageBody,
-//       from: `whatsapp:+14155238886`,
-//       to: `whatsapp:${student.whatsapp}`
-//     });
-//     console.log(`✅ Message sent to ${student.whatsapp} (SID: ${message.sid})`);
-//     return { success: true, sid: message.sid };
-//   } catch (err) {
-//     console.error('Twilio send error:', err.message);
-//     return { success: false, error: err.message };
-//   }
-// };

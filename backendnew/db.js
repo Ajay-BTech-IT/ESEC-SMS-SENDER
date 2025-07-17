@@ -1,13 +1,14 @@
+require('dotenv').config(); // Load .env file
 const mysql = require('mysql2/promise');
 
-// MySQL connection pool
+// MySQL connection pool using environment variables
 const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '',//place your password
-  database: 'collegedb',//create a database named collegedb in your System or 
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD ,
+  database: process.env.DB_NAME ,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
   queueLimit: 0
 });
 
@@ -67,42 +68,40 @@ async function initializeDatabase() {
 
     // Subjects table
     await query(`
-     CREATE TABLE IF NOT EXISTS subjects (
-      subject_code VARCHAR(50),
-      subject_name VARCHAR(255) NOT NULL,
-      department VARCHAR(255) NOT NULL,
-      year VARCHAR(50),
-      semester VARCHAR(50),
-      PRIMARY KEY (subject_code, department)
-    )
+      CREATE TABLE IF NOT EXISTS subjects (
+        subject_code VARCHAR(50),
+        subject_name VARCHAR(255) NOT NULL,
+        department VARCHAR(255) NOT NULL,
+        year VARCHAR(50),
+        semester VARCHAR(50),
+        PRIMARY KEY (subject_code, department)
+      )
     `);
 
-    //files table
-
+    // Files table
     await query(`
-    CREATE TABLE IF NOT EXISTS uploaded_files (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255),
-      path VARCHAR(512),
-      uploaded_by VARCHAR(255),
-      upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+      CREATE TABLE IF NOT EXISTS uploaded_files (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255),
+        path VARCHAR(512),
+        uploaded_by VARCHAR(255),
+        upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-    // Unified Student Marks Table (✅ NEW - replaces dynamic tables)
-   await query(`
-  CREATE TABLE IF NOT EXISTS student_marks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_rollno VARCHAR(50),
-    student_name VARCHAR(255),
-    exam_type VARCHAR(50) NOT NULL,
-    subject_code VARCHAR(50),
-    marks TEXT,
-    FOREIGN KEY (student_rollno) REFERENCES students(rollno) ON DELETE CASCADE,
-    UNIQUE (student_rollno, exam_type, subject_code)
-  )
-`);
-
+    // Unified Student Marks Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS student_marks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_rollno VARCHAR(50),
+        student_name VARCHAR(255),
+        exam_type VARCHAR(50) NOT NULL,
+        subject_code VARCHAR(50),
+        marks TEXT,
+        FOREIGN KEY (student_rollno) REFERENCES students(rollno) ON DELETE CASCADE,
+        UNIQUE (student_rollno, exam_type, subject_code)
+      )
+    `);
 
     // Insert default admin if not exists
     const [adminRows] = await pool.query(

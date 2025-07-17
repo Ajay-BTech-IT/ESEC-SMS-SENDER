@@ -21,7 +21,6 @@ const AdvisorPage = () => {
   });
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [selectedMarkType, setSelectedMarkType] = useState('cat1');
 
   // Bulk Send Marks States
   const [selectedStudentsForMarks, setSelectedStudentsForMarks] = useState([]);
@@ -36,9 +35,10 @@ const AdvisorPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [uploadExamType, setUploadExamType] = useState('');
   const [file, setFile] = useState(null);
-   
 
-  const [showSendModal, setShowSendModal] = useState(false);
+  // Exam Type Modal
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [selectedExamType, setSelectedExamType] = useState('');
 
   // Fetch advisor details on load
   useEffect(() => {
@@ -89,82 +89,76 @@ const AdvisorPage = () => {
   }, [activeMenu, advisorDetails]);
 
   const handleStudentClick = async (student) => {
-  setSelectedStudent(student);
-  try {
-    const res = await axios.get(`${API_URL}/get-marks`, {
-      params: {
-        rollno: student.rollno,
-        semester: advisorDetails.semester,
-        department: advisorDetails.department
-      },
-      withCredentials: true
-    });
-
-    if (res.status === 200) {
-      const data = res.data;
-      console.log("✔️ API Response from get-marks:", data); // <== ADD THIS
-
-      const subjectMap = {};
-      data.subjects.forEach(subj => {
-        subjectMap[subj.subject_code] = subj.subject_name;
+    setSelectedStudent(student);
+    try {
+      const res = await axios.get(`${API_URL}/get-marks`, {
+        params: {
+          rollno: student.rollno,
+          semester: advisorDetails.semester,
+          department: advisorDetails.department
+        },
+        withCredentials: true
       });
-
-      const marksTable = Object.keys(subjectMap).map(code => ({
-        subjectCode: code,
-        subjectName: subjectMap[code],
-        cat1: data.CAT1[code] || '-',
-        cat2: data.CAT2[code] || '-',
-        cat3: data.CAT3[code] || '-',
-        model: data.MODEL[code] || '-'
-      }));
-
-      console.log("📊 Built marksTable:", marksTable); // <== ADD THIS
-
-      setSelectedStudent(prev => ({
+      if (res.status === 200) {
+        const data = res.data;
+        const subjectMap = {};
+        data.subjects.forEach(subj => {
+          subjectMap[subj.subject_code] = subj.subject_name;
+        });
+        const marksTable = Object.keys(subjectMap).map(code => ({
+          subjectCode: code,
+          subjectName: subjectMap[code],
+          cat1: data.CAT1[code] || '-',
+          cat2: data.CAT2[code] || '-',
+          cat3: data.CAT3[code] || '-',
+          model: data.MODEL[code] || '-'
+        }));
+        setSelectedStudent(prev => ({
+          ...prev,
+          marksTable
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch marks:', err.message);
+      setSelectedStudent((prev) => ({
         ...prev,
-        marksTable
+        marksTable: [],
       }));
     }
-  } catch (err) {
-    console.error('Failed to fetch marks:', err.message);
-    setSelectedStudent((prev) => ({
-      ...prev,
-      marksTable: [],
-    }));
-  }
-};
-
-
-const handleBulkSendMarksWithType = async (examType) => {
-  const payload = {
-    marksData: selectedStudentsForMarks.map((s) => ({
-      rollno: s.rollno,
-      examType: examType,
-    })),
   };
 
-  try {
-    const res = await axios.post(`${API_URL}/send-marks`, payload, {
-      withCredentials: true,
-    });
-    if (res.data.success) {
-      alert('✅ Marks sent successfully!');
-    } else {
-      alert('❌ Some marks failed to send.');
+  const handleBulkSendMarksWithType = async (examType) => {
+    if (!selectedStudentsForMarks.length) {
+      alert('Please select at least one student.');
+      return;
     }
-  } catch (err) {
-    console.error('🚨 Error sending marks:', err.message);
-    alert('❌ Currently not able to send message.');
-  }
-};
 
+    const payload = {
+      marksData: selectedStudentsForMarks.map((s) => ({
+        rollno: s.rollno,
+        examType: examType,
+      })),
+    };
 
-  // Render marks table if available
+    try {
+      const res = await axios.post(`${API_URL}/send-marks`, payload, {
+        withCredentials: true,
+      });
+      if (res.data.success) {
+        alert('✅ Marks sent successfully!');
+      } else {
+        alert('❌ Some marks failed to send.');
+      }
+    } catch (err) {
+      console.error('🚨 Error sending marks:', err.message);
+      alert('❌ Currently not able to send message.');
+    }
+  };
+
   const renderMarksTable = () => {
     if (!selectedStudent?.marksTable?.length) {
       return <p className="text-gray-500 italic">No subjects or marks found.</p>;
     }
-
     return (
       <div className="mt-4 overflow-x-auto">
         <h3 className="text-lg font-bold mb-2">Marks</h3>
@@ -196,7 +190,6 @@ const handleBulkSendMarksWithType = async (examType) => {
     );
   };
 
-  // Handle checkbox change
   const handleCheckboxChange = (student) => {
     const isSelected = selectedStudentsForMarks.some((s) => s.rollno === student.rollno);
     if (isSelected) {
@@ -208,7 +201,6 @@ const handleBulkSendMarksWithType = async (examType) => {
     }
   };
 
-  // Handle select all toggle
   const handleSelectAll = () => {
     setSelectAll(!selectAll);
     if (!selectAll) {
@@ -218,70 +210,6 @@ const handleBulkSendMarksWithType = async (examType) => {
     }
   };
 
-  const handleSendMarks = async (examType) => {
-  if (!selectedStudent || !selectedStudent.marksTable?.length) {
-    alert('No marks available to send.');
-    return;
-  }
-
-  const payload = {
-    marksData: [
-      {
-        rollno: selectedStudent.rollno,
-        examType: examType.toUpperCase(),
-      },
-    ],
-  };
-
-  try {
-    const res = await axios.post(`${API_URL}/send-marks`, payload, {
-      withCredentials: true,
-    });
-    if (res.data.success) {
-      alert('✅ Marks sent successfully!');
-    } else {
-      alert('❌ Some marks failed to send.');
-    }
-  } catch (err) {
-    console.error('Error sending marks:', err.message);
-    alert('❌ Currently not able to send message.');
-  } finally {
-    setShowSendModal(false); // Close modal
-  }
-};
-// For exam type selection modal
-const [showExamModal, setShowExamModal] = useState(false);
-const [selectedExamType, setSelectedExamType] = useState('');
-
-  const handleBulkSendMarks = () => {
-    if (selectedStudentsForMarks.length === 0) {
-      alert('Please select at least one student.');
-      return;
-    }
-    const payload = {
-      marksData: selectedStudentsForMarks.map((s) => ({
-        rollno: s.rollno,
-        examType: selectedMarkType,
-      })),
-    };
-    axios
-      .post(`${API_URL}/send-marks`, payload, {
-        withCredentials: true,
-      })
-      .then((res) => {
-        if (res.data.success) {
-          alert('✅ Marks sent successfully!');
-        } else {
-          alert('❌ Some marks failed to send.');
-        }
-      })
-      .catch((err) => {
-        console.error('🚨 Error sending marks:', err.message);
-        alert('❌ Currently not able to send message.');
-      });
-  };
-
-  // Handle Logout
   const handleLogout = async () => {
     try {
       await axios.get('http://localhost:5000/api/auth/logout', {
@@ -292,7 +220,6 @@ const [selectedExamType, setSelectedExamType] = useState('');
     }
   };
 
-  // Subject Modal Handlers
   const openSubjectModal = () => {
     setNumSubjects('');
     setSubjects([]);
@@ -322,94 +249,84 @@ const [selectedExamType, setSelectedExamType] = useState('');
     setSubjects(updatedSubjects);
   };
 
-const handleUpdateSubjects = () => {
-  if (!subjects.some((subj) => subj.code && subj.name)) {
-    alert('Please fill in all subject codes and names.');
-    return;
-  }
-
-  const payload = {
-    subjects,
-    department: advisorDetails.department,
-    year: advisorDetails.year,
-    semester: advisorDetails.semester
+  const handleUpdateSubjects = () => {
+    if (!subjects.some((subj) => subj.code && subj.name)) {
+      alert('Please fill in all subject codes and names.');
+      return;
+    }
+    const payload = {
+      subjects,
+      department: advisorDetails.department,
+      year: advisorDetails.year,
+      semester: advisorDetails.semester
+    };
+    axios
+      .post(`${API_URL}/add-subjects`, payload, {
+        withCredentials: true,
+      })
+      .then((res) => {
+        if (res.data.success) {
+          alert(res.data.message);
+          setShowSubjectModal(false);
+        } else {
+          alert('❌ Failed to save subjects.');
+        }
+      })
+      .catch((err) => {
+        console.error('Error saving subjects:', err.message);
+        alert('❌ Error saving subjects. Check console for details.');
+      });
   };
 
-  axios
-    .post(`${API_URL}/add-subjects`, payload, {
-      withCredentials: true,
-    })
-    .then((res) => {
-      if (res.data.success) {
-        alert(res.data.message);
-        setShowSubjectModal(false);
-      } else {
-        alert('❌ Failed to save subjects.');
-      }
-    })
-    .catch((err) => {
-      console.error('Error saving subjects:', err.message);
-      alert('❌ Error saving subjects. Check console for details.');
-    });
-};
-
-  // File Upload Modal Handlers
   const handleUploadClick = (examType) => {
     setUploadExamType(examType);
     setShowModal(true);
   };
 
- const handleFileChange = (e) => {
-  const selectedFile = e.target.files[0];
-  setFile(selectedFile);
-
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    const data = evt.target.result;
-    const workbook = XLSX.read(data, { type: 'binary' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-
-    // Read without assuming headers
-    const json = XLSX.utils.sheet_to_json(worksheet);
-    if (json.length > 0) {
-      const sampleRow = json[0];
-      const subjectsFound = Object.keys(sampleRow).filter(
-        (key) => !['student_rollno', 'student_name'].includes(key.trim())
-      );
-      alert("Detected Subjects: " + subjectsFound.join(', '));
-    }
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    setFile(selectedFile);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const data = evt.target.result;
+      const workbook = XLSX.read(data, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet);
+      if (json.length > 0) {
+        const sampleRow = json[0];
+        const subjectsFound = Object.keys(sampleRow).filter(
+          (key) => !['student_rollno', 'student_name'].includes(key.trim())
+        );
+        alert("Detected Subjects: " + subjectsFound.join(', '));
+      }
+    };
+    reader.readAsBinaryString(selectedFile);
   };
-  reader.readAsBinaryString(selectedFile);
-};
-  
 
   const handleUploadSubmit = async () => {
-  if (!file) {
-    alert('Please select a file to upload.');
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('examType', uploadExamType); // e.g., 'CAT1'
-
-  try {
-    const res = await axios.post(`${API_URL}/upload-marks`, formData, {
-      withCredentials: true,
-    });
-
-    if (res.data.success) {
-      alert(res.data.message);
-      setShowModal(false);
-    } else {
-      alert(`Error: ${res.data.message}`);
+    if (!file) {
+      alert('Please select a file to upload.');
+      return;
     }
-  } catch (err) {
-    console.error('Upload error:', err.message);
-    alert(`Upload failed: ${err.message}`);
-  }
-};
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('examType', uploadExamType);
+    try {
+      const res = await axios.post(`${API_URL}/upload-marks`, formData, {
+        withCredentials: true,
+      });
+      if (res.data.success) {
+        alert(res.data.message);
+        setShowModal(false);
+      } else {
+        alert(`Error: ${res.data.message}`);
+      }
+    } catch (err) {
+      console.error('Upload error:', err.message);
+      alert(`Upload failed: ${err.message}`);
+    }
+  };
 
   return (
     <>
@@ -432,7 +349,6 @@ const handleUpdateSubjects = () => {
                 <p className="text-sm font-bold">SENGUNTHAR ENGINEERING COLLEGE</p>
               </div>
             </div>
-
             {/* Navigation Menu */}
             <ul className="flex flex-wrap gap-4 text-white font-medium">
               <li>
@@ -465,7 +381,7 @@ const handleUpdateSubjects = () => {
         </header>
 
         {/* Main Content */}
-        <main className="flex-grow container mx-auto p-4 md:p-6 bg-blue-120">
+        <main className="flex-grow container mx-auto p-4 md:p-6">
           {/* Home Section */}
           {activeMenu === 'home' && (
             <div className="flex flex-col md:flex-row items-center justify-between p-4 md:p-6 bg-blue-100 rounded-lg shadow-lg space-y-6 md:space-y-0 md:space-x-6">
@@ -495,95 +411,94 @@ const handleUpdateSubjects = () => {
             </div>
           )}
 
+          {/* Students Section */}
           {activeMenu === 'students' && (
-          <div className="bg-blue-100 rounded-lg shadow-lg p-4 md:p-6">
-            <h2 className="text-xl md:text-2xl font-bold mb-4">Students</h2>
-            {selectedStudent ? (
-              <div className="flex flex-col md:flex-row gap-6">
-                {/* Left Panel */}
-                <div className="w-full md:w-1/4 md:h-[80vh] md:overflow-y-auto bg-white rounded-lg shadow-lg p-4 md:p-6">
-                  <h2 className="text-xl font-bold mb-4">Students</h2>
-                  <div className="grid grid-cols-1 gap-4">
-                    {students.length > 0 ? (
-                      students.map((student) => (
-                        <div
-                          key={student.rollno}
-                          className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
-                          onClick={() => handleStudentClick(student)}
-                        >
-                          <h3 className="text-lg font-semibold">{student.name}</h3>
-                          <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <p>No students found.</p>
-                    )}
+            <div className="bg-white rounded-lg shadow-lg p-4 md:p-6">
+              <h2 className="text-xl md:text-2xl font-bold mb-4">Students</h2>
+              {selectedStudent ? (
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* Left Panel */}
+                  <div className="w-full md:w-1/4 md:h-[80vh] md:overflow-y-auto bg-white rounded-lg shadow-lg p-4 md:p-6">
+                    <h2 className="text-xl font-bold mb-4">Students</h2>
+                    <div className="grid grid-cols-1 gap-4">
+                      {students.length > 0 ? (
+                        students.map((student) => (
+                          <div
+                            key={student.rollno}
+                            className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
+                            onClick={() => handleStudentClick(student)}
+                          >
+                            <h3 className="text-lg font-semibold">{student.name}</h3>
+                            <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <p>No students found.</p>
+                      )}
+                    </div>
+                  </div>
+                  {/* Right Panel */}
+                  <div className="w-full md:w-3/4 bg-white rounded-lg shadow-lg p-4 md:p-6">
+                    <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
+                    <table className="min-w-full mt-2 border-collapse border border-gray-300">
+                      <tbody>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Roll No</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.rollno}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Department</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.department}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Year</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.year}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Class</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.class}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Email</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.email}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">WhatsApp</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.whatsapp}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Language</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.language}</td>
+                        </tr>
+                        <tr className="bg-gray-100">
+                          <td className="border border-gray-300 px-3 py-2 font-semibold">Semester</td>
+                          <td className="border border-gray-300 px-3 py-2">{selectedStudent.semester}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {renderMarksTable()}
                   </div>
                 </div>
-
-                {/* Right Panel */}
-                <div className="w-full md:w-3/4 bg-white rounded-lg shadow-lg p-4 md:p-6">
-                  <h3 className="text-xl font-bold">{selectedStudent.name}</h3>
-                  <table className="min-w-full mt-2 border-collapse border border-gray-300">
-                    <tbody>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Roll No</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.rollno}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Department</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.department}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Year</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.year}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Class</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.class}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Email</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.email}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">WhatsApp</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.whatsapp}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Language</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.language}</td>
-                      </tr>
-                      <tr className="bg-gray-100">
-                        <td className="border border-gray-300 px-3 py-2 font-semibold">Semester</td>
-                        <td className="border border-gray-300 px-3 py-2">{selectedStudent.semester}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  {renderMarksTable()}
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {students.length > 0 ? (
+                    students.map((student) => (
+                      <div
+                        key={student.rollno}
+                        className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
+                        onClick={() => handleStudentClick(student)}
+                      >
+                        <h3 className="text-lg font-semibold">{student.name}</h3>
+                        <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No students found.</p>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {students.length > 0 ? (
-                  students.map((student) => (
-                    <div
-                      key={student.rollno}
-                      className="border border-gray-300 rounded-lg p-4 cursor-pointer hover:bg-blue-50 transition-shadow"
-                      onClick={() => handleStudentClick(student)}
-                    >
-                      <h3 className="text-lg font-semibold">{student.name}</h3>
-                      <p className="text-sm text-gray-600">Roll No: {student.rollno}</p>
-                    </div>
-                  ))
-                ) : (
-                  <p>No students found.</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
+              )}
+            </div>
+          )}
 
           {/* Send Section */}
           {activeMenu === 'send' && (
@@ -602,14 +517,12 @@ const handleUpdateSubjects = () => {
                       alert('Please select at least one student.');
                       return;
                     }
-                    setShowExamModal(true); // 👈 Show modal instead of sending directly
-                    handleBulkSendMarksWithType(selectedExamType); 
+                    setShowExamModal(true);
                   }}
                   className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                 >
                   Send Selected Marks
                 </button>
-
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {students.map((student) => (
@@ -674,6 +587,7 @@ const handleUpdateSubjects = () => {
           )}
         </main>
 
+        {/* Modals go here */}
         {/* Subject Modal */}
         {showSubjectModal && (
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -746,52 +660,49 @@ const handleUpdateSubjects = () => {
             </div>
           </div>
         )}
-       
 
         {/* Exam Type Selection Modal */}
-          {showExamModal && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-              <div className="bg-white p-6 rounded-lg shadow-lg w-80">
-                <h3 className="text-lg font-bold mb-4">Select Exam Type</h3>
-
-                {['CAT1', 'CAT2', 'CAT3', 'MODEL'].map((type) => (
-                  <label key={type} className="flex items-center mb-2">
-                    <input
-                      type="radio"
-                      name="examType"
-                      value={type}
-                      checked={selectedExamType === type}
-                      onChange={(e) => setSelectedExamType(e.target.value)}
-                      className="mr-2"
-                    />
-                    {type}
-                  </label>
-                ))}
-
-                <div className="flex justify-end mt-4 gap-2">
-                  <button
-                    onClick={() => setShowExamModal(false)}
-                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!selectedExamType) {
-                        alert('Please select an exam type.');
-                        return;
-                      }
-                      setShowExamModal(false);
-                      handleBulkSendMarksWithType(selectedExamType); // 👈 trigger send
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Send
-                  </button>
-                </div>
+        {showExamModal && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-80">
+              <h3 className="text-lg font-bold mb-4">Select Exam Type</h3>
+              {['CAT1', 'CAT2', 'CAT3', 'MODEL'].map((type) => (
+                <label key={type} className="flex items-center mb-2">
+                  <input
+                    type="radio"
+                    name="examType"
+                    value={type}
+                    checked={selectedExamType === type}
+                    onChange={(e) => setSelectedExamType(e.target.value)}
+                    className="mr-2"
+                  />
+                  {type}
+                </label>
+              ))}
+              <div className="flex justify-end mt-4 gap-2">
+                <button
+                  onClick={() => setShowExamModal(false)}
+                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedExamType) {
+                      alert('Please select an exam type.');
+                      return;
+                    }
+                    setShowExamModal(false);
+                    handleBulkSendMarksWithType(selectedExamType);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Send
+                </button>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
         {/* File Upload Modal */}
         {showModal && (
@@ -838,6 +749,18 @@ const handleUpdateSubjects = () => {
           </div>
         )}
       </div>
+      
+{/* Footer - Only show if not on Home */}
+{activeMenu !== 'home' && (
+  <footer className="bg-[#292969] text-white py-4 text-center mt-auto">
+    <p className="text-sm">
+      © Copyright Reserved to Erode Sengunthar Engineering College
+    </p>
+    <p className="text-xs mt-1">
+      Developed By Ajay M - B.Tech
+    </p>
+  </footer>
+)}
     </>
   );
 };
