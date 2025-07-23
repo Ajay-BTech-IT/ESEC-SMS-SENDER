@@ -11,7 +11,7 @@ require('dotenv').config();
 
 // CORS Options
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: 'http://localhost:3000', // Replace with your frontend URL
   credentials: true,
 };
 

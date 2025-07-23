@@ -1,29 +1,29 @@
 require('dotenv').config(); // Load .env file
 const mysql = require('mysql2/promise');
 
-// MySQL connection pool using environment variables
+// Create pool (not single connection)
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD ,
-  database: process.env.DB_NAME ,
+  host: process.env.DB_HOST,         // Example: containers-us-west-xx.railway.app
+  user: process.env.DB_USER,         // Usually "root"
+  password: process.env.DB_PASSWORD, // Your password from Railway
+  database: process.env.DB_NAME,     // collegedb
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
   queueLimit: 0
 });
 
-// Utility function to execute queries
+// Query utility
 async function query(sql, params) {
   const [rows] = await pool.query(sql, params);
   return rows;
 }
 
-// Initialize base tables
+// Initialize database tables
 async function initializeDatabase() {
   try {
     console.log("Initializing database...");
 
-    // Admin table
     await query(`
       CREATE TABLE IF NOT EXISTS admin (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -36,7 +36,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Students table
     await query(`
       CREATE TABLE IF NOT EXISTS students (
         rollno VARCHAR(50) PRIMARY KEY,
@@ -51,7 +50,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Advisors table
     await query(`
       CREATE TABLE IF NOT EXISTS advisors (
         advisorid VARCHAR(255) PRIMARY KEY,
@@ -66,7 +64,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Subjects table
     await query(`
       CREATE TABLE IF NOT EXISTS subjects (
         subject_code VARCHAR(50),
@@ -78,7 +75,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Files table
     await query(`
       CREATE TABLE IF NOT EXISTS uploaded_files (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -89,7 +85,6 @@ async function initializeDatabase() {
       )
     `);
 
-    // Unified Student Marks Table
     await query(`
       CREATE TABLE IF NOT EXISTS student_marks (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -103,7 +98,7 @@ async function initializeDatabase() {
       )
     `);
 
-    // Insert default admin if not exists
+    // Insert default admin
     const [adminRows] = await pool.query(
       'SELECT COUNT(*) AS count FROM admin WHERE username = ?',
       ['admin']
@@ -122,9 +117,9 @@ async function initializeDatabase() {
       console.log('Admin credentials already exist.');
     }
 
-    console.log("Database initialized.");
+    console.log(" Database initialized.");
   } catch (error) {
-    console.error("Error initializing database:", error.message);
+    console.error("❌ Error initializing database:", error.message);
   }
 }
 

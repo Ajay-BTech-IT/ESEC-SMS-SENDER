@@ -125,7 +125,7 @@ router.post('/add-admin', async (req, res) => {
 router.get('/get-student/:rollno', async (req, res) => {
   const rollno = req.params.rollno;
   try {
-    const student = await query('SELECT * FROM students WHERE rollno = ?', [rollno]);
+    const student = await query('SELECT * FROM students WHERE rollno = ? ORDER BY ASC', [rollno]);
     if (student.length === 0) {
       return res.status(404).json({ message: 'Student not found' });
     }
@@ -327,35 +327,61 @@ router.put('/update-all-admins', async (req, res) => {
   }
 });
 
+// // Remove Student
+// router.delete('/remove-student/:rollno', async (req, res) => {
+//   const rollno = req.params.rollno;
+
+//   try {
+//     // Step 1: Get all dynamic marks tables
+//     const tables = await query(`
+//       SELECT TABLE_NAME FROM information_schema.tables
+//       WHERE TABLE_SCHEMA = 'collegedb'
+//       AND TABLE_NAME LIKE 'Cat%_student_marks_%'
+//     `);
+
+//     // Step 2: Delete student from each dynamic table
+//     for (const table of tables) {
+//       const tableName = table.TABLE_NAME;
+//       await query(`DELETE FROM ?? WHERE student_rollno = ?`, [tableName, rollno]);
+//     }
+
+//     // Step 3: Delete student from main table
+//     const result = await query('DELETE FROM students WHERE rollno = ?', [rollno]);
+
+//     if (result.affectedRows === 0) {
+//       return res.status(404).json({ message: 'Student not found!' });
+//     }
+
+//     return res.json({ message: '✅ Student and related marks deleted successfully!' });
+
+//   } catch (err) {
+//     console.error('Error removing student:', err.message);
+//     return res.status(500).json({ message: `❌ DB Error: ${err.message}` });
+//   }
+// });
+
 // Remove Student
+// This will also automatically delete marks from student_marks due to CASCADE
 router.delete('/remove-student/:rollno', async (req, res) => {
   const rollno = req.params.rollno;
 
   try {
-    // Step 1: Get all dynamic marks tables
-    const tables = await query(`
-      SELECT TABLE_NAME FROM information_schema.tables
-      WHERE TABLE_SCHEMA = 'collegedb'
-      AND TABLE_NAME LIKE 'Cat%_student_marks_%'
-    `);
-
-    // Step 2: Delete student from each dynamic table
-    for (const table of tables) {
-      const tableName = table.TABLE_NAME;
-      await query(`DELETE FROM ?? WHERE student_rollno = ?`, [tableName, rollno]);
-    }
-
-    // Step 3: Delete student from main table
+    // Delete student from the main 'students' table
+    // The ON DELETE CASCADE on student_marks will automatically remove related marks
     const result = await query('DELETE FROM students WHERE rollno = ?', [rollno]);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Student not found!' });
     }
 
+    // If affectedRows > 0, the student (and their marks) were deleted successfully
     return res.json({ message: '✅ Student and related marks deleted successfully!' });
 
   } catch (err) {
     console.error('Error removing student:', err.message);
+    // It's good practice to check for specific errors like foreign key constraints
+    // if you add more tables referencing students in the future without CASCADE.
+    // For now, with CASCADE, most errors are likely server-side issues.
     return res.status(500).json({ message: `❌ DB Error: ${err.message}` });
   }
 });
@@ -573,7 +599,7 @@ router.get('/filter-students', async (req, res) => {
 
   try {
     const rows = await query(
-      `SELECT * FROM students ${filterConditions.length ? 'WHERE ' + filterConditions.join(' AND ') : ''} ORDER BY department ASC`,
+      `SELECT * FROM students ${filterConditions.length ? 'WHERE ' + filterConditions.join(' AND ') : ''} ORDER BY rollno ASC`,
       filterValues
     );
     return res.json(rows);
@@ -641,35 +667,44 @@ router.get('/filter-admins', async (req, res) => {
   }
 });
 
+
 // Bulk Remove Students
+
 router.delete('/remove-students', async (req, res) => {
   const { ids } = req.body;
 
+  // Basic validation
   if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ message: '❌ No student IDs provided!' });
+    return res.status(400).json({ message: ' No student IDs provided or invalid format!' });
+  }
+
+ 
+  const validIds = ids.filter(id => typeof id === 'string' && id.trim() !== '');
+  if (validIds.length === 0) {
+     return res.status(400).json({ message: '❌ No valid student IDs provided!' });
   }
 
   try {
-    // Step 1: Delete from dynamic marks tables
-    const tables = await query(`
-      SELECT TABLE_NAME FROM information_schema.tables
-      WHERE TABLE_SCHEMA = 'collegedb'
-      AND TABLE_NAME LIKE 'Cat%_student_marks_%'
-    `);
+    
+    const placeholders = ids.map(() => '?').join(',');
 
-    for (const table of tables) {
-      const tableName = table.TABLE_NAME;
-      await query(`DELETE FROM ?? WHERE student_rollno IN (?)`, [tableName, ids]);
+    
+    const result = await query(`DELETE FROM students WHERE rollno IN (${placeholders})`, ids);
+
+    if (result.affectedRows === 0) {
+    
+      return res.status(404).json({ message: 'No students found with the provided IDs.' });
     }
 
-    // Step 2: Delete from main students table
-    const placeholders = ids.map(() => '?').join(',');
-    await query(`DELETE FROM students WHERE rollno IN (${placeholders})`, ids);
-
-    return res.json({ message: `✅ Removed ${ids.length} students and related marks successfully!` });
+    return res.json({
+      message: `Removed ${result.affectedRows} student(s) and their related marks successfully!`,
+      removedCount: result.affectedRows // Optional: return the actual count deleted
+    });
 
   } catch (err) {
     console.error('Error removing students:', err.message);
+    // Specific error handling can be added here if needed (e.g., foreign key constraints
+    // if CASCADE is removed or other tables reference students).
     return res.status(500).json({ message: `❌ DB Error: ${err.message}` });
   }
 });

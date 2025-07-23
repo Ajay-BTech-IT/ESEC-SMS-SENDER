@@ -172,6 +172,32 @@ router.get('/getStudentMarks/:rollno', isAuthenticated, async (req, res) => {
     return res.status(500).send(err.message);
   }
 });
+// GET /api/advisor/get-subjects - Get subjects for advisor's scope
+router.get('/get-subjects', isAuthenticated, async (req, res) => {
+  const username = req.session.user.username;
+  try {
+    // Fetch advisor details
+    const [advisor] = await query(
+      'SELECT department, year, semester FROM advisors WHERE username = ?',
+      [username]
+    );
+    if (!advisor || !advisor.department) {
+      return res.status(400).json({ success: false, message: 'Advisor details missing' });
+    }
+    const { department, year, semester } = advisor;
+
+    // Fetch subjects matching advisor's scope
+    const subjects = await query(
+      'SELECT subject_code, subject_name FROM subjects WHERE department = ? AND year = ? AND semester = ? ORDER BY subject_code',
+      [department, year, semester]
+    );
+
+    res.json({ success: true, subjects });
+  } catch (err) {
+    console.error('Error fetching subjects:', err.message);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 // // POST /api/advisor/send-marks - Send marks via Twilio
 // router.post('/send-marks', isAuthenticated, async (req, res) => {
